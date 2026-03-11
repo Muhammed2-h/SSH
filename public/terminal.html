@@ -285,8 +285,18 @@
         if (data.url) {
           term.writeln('\x1b[32mAuth URL generated! Click below to login:\x1b[0m');
           term.writeln(`\x1b[34m\x1b[4m${data.url}\x1b[0m`);
+          
+          term.writeln('\x1b[90mWaiting for authentication...\x1b[0m');
+          const poll = setInterval(async () => {
+             const statRes = await fetch('/ts-status');
+             const statData = await statRes.json();
+             if (!statData.status.includes('Logged out') && !statData.status.includes('NeedsLogin')) {
+                clearInterval(poll);
+                term.writeln('\r\n\x1b[32mTailscale Authenticated successfully! You can now Connect.\x1b[0m');
+             }
+          }, 4000);
         } else {
-          term.writeln(`\x1b[90m${data.message || 'Unknown response'}\x1b[0m`);
+          term.writeln(`\x1b[33m${data.message || 'Unknown response'}\x1b[0m`);
         }
       } catch (e) {
         term.writeln('\x1b[31mFailed to request Tailscale login.\x1b[0m');

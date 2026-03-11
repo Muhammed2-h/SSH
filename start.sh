@@ -17,7 +17,7 @@ sleep 5
 
 if [ -n "$TAILSCALE_AUTHKEY" ]; then
   echo "Authenticating Tailscale node..."
-  tailscale --socket=$TS_SOCKET up --authkey="$TAILSCALE_AUTHKEY" --accept-routes --hostname=railway-terminal
+  tailscale --socket=$TS_SOCKET up --authkey="$TAILSCALE_AUTHKEY" --accept-routes --accept-dns=false --hostname=railway-terminal
 else
   echo "No TAILSCALE_AUTHKEY set, bypassing auto auth."
 fi

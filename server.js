@@ -103,7 +103,8 @@ app.get('/ts-login', requireAuth, (req, res) => {
     '--socket=./tailscaled.sock', 
     'up', 
     '--hostname=railway-terminal', 
-    '--accept-routes'
+    '--accept-routes',
+    '--accept-dns=false'
   ]);
   
   let output = '';
@@ -124,7 +125,11 @@ app.get('/ts-login', requireAuth, (req, res) => {
   child.on('close', (code) => {
     if (!responded) {
       responded = true;
-      res.json({ url: null, message: output || 'Authenticated successfully or no URL provided.' });
+      if (output.includes('requires mentioning all non-default flags')) {
+        res.json({ url: null, message: 'You are already authenticated with Tailscale! Click TS Status to verify.' });
+      } else {
+        res.json({ url: null, message: output || 'Authenticated successfully or no URL provided.' });
+      }
     }
   });
 
