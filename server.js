@@ -188,7 +188,11 @@ function handleSSHSession(ws, req) {
               conn.connect(sshConfig);
             }).catch(err => {
               if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'error', message: 'Tailscale Proxy Error: ' + err.message }));
+                let msg = 'Tailscale Proxy Error: ' + err.message;
+                if (err.message.includes('rejected connection')) {
+                  msg += '\r\n(Hint: Ensure Tailscale is connected properly on Railway, the target machine is online in your Tailnet, and port 22 is open)';
+                }
+                ws.send(JSON.stringify({ type: 'error', message: msg }));
                 ws.close();
               }
             });
