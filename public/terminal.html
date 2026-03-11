@@ -107,6 +107,7 @@
     <button id="btn-connect">Connect</button>
     <button id="btn-disconnect" disabled>Disconnect</button>
     <button id="btn-ts-status" title="Check Tailscale Connection">TS Status</button>
+    <button id="btn-ts-login" title="Authenticate Tailscale">TS Login</button>
     <span id="status-dot"></span>
     <span id="status-text" style="font-size:12px;color:#666">Idle</span>
     <a href="/logout" style="margin-left:auto;font-size:12px;color:#666;text-decoration:none">Logout</a>
@@ -273,6 +274,22 @@
         term.writeln(formatted);
       } catch (e) {
         term.writeln('\x1b[31mFailed to fetch Tailscale status.\x1b[0m');
+      }
+    });
+
+    document.getElementById('btn-ts-login').addEventListener('click', async () => {
+      term.writeln('\r\n\x1b[36mRequesting Tailscale Auth URL...\x1b[0m');
+      try {
+        const res = await fetch('/ts-login');
+        const data = await res.json();
+        if (data.url) {
+          term.writeln('\x1b[32mAuth URL generated! Click below to login:\x1b[0m');
+          term.writeln(`\x1b[34m\x1b[4m${data.url}\x1b[0m`);
+        } else {
+          term.writeln(`\x1b[90m${data.message || 'Unknown response'}\x1b[0m`);
+        }
+      } catch (e) {
+        term.writeln('\x1b[31mFailed to request Tailscale login.\x1b[0m');
       }
     });
 

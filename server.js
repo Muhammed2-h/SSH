@@ -97,6 +97,41 @@ app.get('/ts-status', requireAuth, (req, res) => {
   });
 });
 
+app.get('/ts-login', requireAuth, (req, res) => {
+  const { spawn } = require('child_process');
+  const child = spawn('tailscale', ['--socket=./tailscaled.sock', 'up', '--hostname=railway-terminal']);
+  
+  let output = '';
+  let responded = false;
+  
+  const handleData = (data) => {
+    output += data.toString();
+    const match = output.match(/(https:\/\/login\.tailscale\.com[^\s]*)/);
+    if (match && !responded) {
+      responded = true;
+      res.json({ url: match[1], message: 'Please visit the URL to authenticate.' });
+    }
+  };
+
+  child.stdout.on('data', handleData);
+  child.stderr.on('data', handleData);
+
+  child.on('close', (code) => {
+    if (!responded) {
+      responded = true;
+      res.json({ url: null, message: output || 'Authenticated successfully or no URL provided.' });
+    }
+  });
+
+  // Timeout safety
+  setTimeout(() => {
+    if (!responded) {
+      responded = true;
+      res.json({ url: null, message: 'Timed out waiting for URL.\n' + output });
+    }
+  }, 10000);
+});
+
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
