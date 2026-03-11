@@ -181,8 +181,8 @@ function handleSSHSession(ws) {
         host,
         port: parseInt(port) || 22,
         username,
-        readyTimeout: 30000,
-        keepaliveInterval: 15000,
+        readyTimeout: 40000,    // 40s — SOCKS proxy adds latency
+        keepaliveInterval: 0,   // disable — WS ping/pong handles this at higher level
       };
 
       if (authMethod === 'password') {
