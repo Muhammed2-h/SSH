@@ -185,11 +185,23 @@ function handleSSHSession(ws) {
         keepaliveInterval: 15000,
       };
 
-      if (authMethod === 'password')   sshCfg.password = password;
-      else if (authMethod === 'key')   sshCfg.privateKey = privateKey;
-      else if (authMethod === 'serverkey') sshCfg.privateKey = SSH_PRIVATE_KEY;
+      if (authMethod === 'password') {
+        sshCfg.password = password;
+        sshCfg.tryKeyboard = true;
+        sshCfg.authHandler = ['password', 'keyboard-interactive'];
+      } else if (authMethod === 'key') {
+        sshCfg.privateKey = privateKey;
+      } else if (authMethod === 'serverkey') {
+        sshCfg.privateKey = SSH_PRIVATE_KEY;
+      }
 
+      // Create client FIRST, then attach all handlers
       conn = new Client();
+
+      // keyboard-interactive: auto-reply to any "Password:" prompts
+      conn.on('keyboard-interactive', (name, instructions, il, prompts, finish) => {
+        finish(prompts.map(() => password || ''));
+      });
 
       conn.on('ready', () => {
         conn.shell(
