@@ -99,7 +99,12 @@ app.get('/ts-status', requireAuth, (req, res) => {
 
 app.get('/ts-login', requireAuth, (req, res) => {
   const { spawn } = require('child_process');
-  const child = spawn('tailscale', ['--socket=./tailscaled.sock', 'up', '--hostname=railway-terminal']);
+  const child = spawn('tailscale', [
+    '--socket=./tailscaled.sock', 
+    'up', 
+    '--hostname=railway-terminal', 
+    '--accept-routes'
+  ]);
   
   let output = '';
   let responded = false;
