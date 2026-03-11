@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SSH Terminal Login</title>
+  <style>
+    body {
+      background: #0d0d0d;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .card {
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-radius: 8px;
+      padding: 40px;
+      width: 100%;
+      max-width: 320px;
+      text-align: center;
+    }
+    h1 {
+      color: white;
+      margin: 0 0 8px 0;
+      font-size: 24px;
+    }
+    p {
+      color: #666;
+      margin: 0 0 24px 0;
+      font-size: 14px;
+    }
+    input {
+      width: calc(100% - 24px);
+      padding: 10px 12px;
+      margin-bottom: 16px;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 4px;
+      color: white;
+      font-size: 14px;
+    }
+    input:focus {
+      outline: none;
+      border-color: #2563eb;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #2563eb;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      font-size: 15px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    .error {
+      color: #dc2626;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>SSH Terminal</h1>
+    <p>Remote Access</p>
+    <div class="error" id="error-msg">Invalid credentials</div>
+    <form action="/login" method="POST">
+      <input type="text" name="username" placeholder="Username" autofocus required>
+      <input type="password" name="password" placeholder="Password" required>
+      <button type="submit">Log in</button>
+    </form>
+  </div>
+  <script>
+    if (window.location.search.includes('error=1')) {
+      document.getElementById('error-msg').style.display = 'block';
+    }
+  </script>
+</body>
+</html>

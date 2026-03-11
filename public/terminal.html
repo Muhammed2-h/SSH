@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SSH Terminal</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+  <style>
+    body {
+      margin: 0;
+      background: #0d0d0d;
+      color: #ccc;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #topbar {
+      background: #111;
+      border-bottom: 1px solid #1e1e1e;
+      padding: 10px 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    #terminal-container {
+      flex: 1;
+      overflow: hidden;
+      padding: 4px;
+    }
+    input, select, textarea {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      color: #ccc;
+      border-radius: 4px;
+      padding: 5px 8px;
+      font-size: 13px;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #2563eb;
+    }
+    button {
+      background: #1e1e1e;
+      border: 1px solid #333;
+      color: #ccc;
+      border-radius: 4px;
+      padding: 5px 12px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    #btn-connect {
+      background: #2563eb;
+      border-color: #2563eb;
+      color: white;
+    }
+    #btn-connect:hover {
+      background: #1d4ed8;
+    }
+    #btn-connect:disabled {
+      background: #1e1e1e;
+      border-color: #333;
+      color: #666;
+      cursor: not-allowed;
+    }
+    #btn-disconnect {
+      background: #7f1d1d;
+      border-color: #991b1b;
+      color: white;
+    }
+    #btn-disconnect:hover {
+      background: #991b1b;
+    }
+    #btn-disconnect:disabled {
+      background: #1e1e1e;
+      border-color: #333;
+      color: #666;
+      cursor: not-allowed;
+    }
+    #status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #444;
+    }
+    #auth-input-area {
+      display: flex;
+      align-items: center;
+    }
+    .flash-error {
+      border-color: #dc2626 !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="topbar">
+    <input id="host" placeholder="Host / Tailscale IP" style="width:160px">
+    <input id="port" placeholder="Port" value="22" style="width:50px">
+    <input id="username" placeholder="Username" style="width:100px">
+    <select id="auth-mode">
+      <option value="password">Password</option>
+      <option value="key">Paste Key</option>
+    </select>
+    <div id="auth-input-area">
+      <input id="password" type="password" placeholder="Password" style="width:120px">
+      <textarea id="privatekey" placeholder="Paste PEM private key here..." rows="1" style="width:200px;height:28px;resize:none;font-family:monospace;font-size:11px;display:none;"></textarea>
+      <span id="serverkey-msg" style="color:#666;font-size:12px;display:none;">Using server-configured key</span>
+    </div>
+    <button id="btn-connect">Connect</button>
+    <button id="btn-disconnect" disabled>Disconnect</button>
+    <span id="status-dot"></span>
+    <span id="status-text" style="font-size:12px;color:#666">Idle</span>
+    <a href="/logout" style="margin-left:auto;font-size:12px;color:#666;text-decoration:none">Logout</a>
+  </div>
+  <div id="terminal-container"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+  <script>
+    let ws = null;
+    let term = null;
+    let fitAddon = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      term = new Terminal({
+        theme: { background: '#0d0d0d', foreground: '#cccccc', cursor: '#ffffff' },
+        fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace",
+        fontSize: 14,
+        cursorBlink: true,
+        scrollback: 5000,
+      });
+      fitAddon = new FitAddon.FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(document.getElementById('terminal-container'));
+      fitAddon.fit();
+      term.writeln('\x1b[90mSSH Terminal ready. Configure connection above and click Connect.\x1b[0m');
+
+      window.addEventListener('resize', () => { setTimeout(() => { fitAddon.fit(); sendResize(); }, 100); });
+
+      try {
+        const keyRes = await fetch('/has-key');
+        const keyData = await keyRes.json();
+        if (keyData.hasKey) {
+          const opt = document.createElement('option');
+          opt.value = 'serverkey';
+          opt.textContent = 'Server Key';
+          document.getElementById('auth-mode').appendChild(opt);
+        }
+
+        const hostRes = await fetch('/last-host');
+        const hostData = await hostRes.json();
+        if (hostData.host) document.getElementById('host').value = hostData.host;
+        if (hostData.port) document.getElementById('port').value = hostData.port;
+        if (hostData.username) document.getElementById('username').value = hostData.username;
+      } catch (err) {}
+    });
+
+    document.getElementById('auth-mode').addEventListener('change', (e) => {
+      const mode = e.target.value;
+      document.getElementById('password').style.display = mode === 'password' ? 'block' : 'none';
+      document.getElementById('privatekey').style.display = mode === 'key' ? 'block' : 'none';
+      document.getElementById('serverkey-msg').style.display = mode === 'serverkey' ? 'block' : 'none';
+    });
+
+    function setStatus(color, text) {
+      document.getElementById('status-dot').style.background = color;
+      document.getElementById('status-text').textContent = text;
+    }
+
+    function sendResize() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'resize', rows: term.rows, cols: term.cols }));
+      }
+    }
+
+    document.getElementById('btn-connect').addEventListener('click', async () => {
+      const hostInput = document.getElementById('host');
+      const usernameInput = document.getElementById('username');
+      const host = hostInput.value.trim();
+      const port = document.getElementById('port').value.trim() || '22';
+      const username = usernameInput.value.trim();
+      const authMode = document.getElementById('auth-mode').value;
+
+      hostInput.classList.remove('flash-error');
+      usernameInput.classList.remove('flash-error');
+
+      if (!host || !username) {
+        if (!host) hostInput.classList.add('flash-error');
+        if (!username) usernameInput.classList.add('flash-error');
+        return;
+      }
+
+      await fetch('/save-host', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host, port, username })
+      });
+
+      setStatus('#ca8a04', 'Connecting...');
+      document.getElementById('btn-connect').disabled = true;
+      document.getElementById('btn-disconnect').disabled = false;
+
+      term.reset();
+      term.writeln('\x1b[90mConnecting to ' + host + '...\x1b[0m');
+
+      const wsUrl = (location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host;
+      ws = new WebSocket(wsUrl);
+      ws.binaryType = 'arraybuffer';
+
+      ws.onopen = () => {
+        const msg = { type: 'connect', host, port, username, authMethod: authMode, rows: term.rows, cols: term.cols };
+        if (authMode === 'password') msg.password = document.getElementById('password').value;
+        if (authMode === 'key') msg.privateKey = document.getElementById('privatekey').value;
+        ws.send(JSON.stringify(msg));
+      };
+
+      ws.onmessage = (event) => {
+        if (typeof event.data === 'string') {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'disconnect' || data.type === 'error') {
+              setStatus('#dc2626', data.type === 'error' ? 'Error' : 'Disconnected');
+              term.writeln('\r\n\x1b[31m' + (data.message || data.reason) + '\x1b[0m');
+              document.getElementById('btn-connect').disabled = false;
+              document.getElementById('btn-disconnect').disabled = true;
+              return;
+            }
+          } catch (e) {
+            term.write(event.data);
+            if (document.getElementById('status-text').textContent !== 'Connected') {
+              setStatus('#16a34a', 'Connected');
+            }
+          }
+        } else {
+          term.write(new Uint8Array(event.data));
+          if (document.getElementById('status-text').textContent !== 'Connected') {
+            setStatus('#16a34a', 'Connected');
+          }
+        }
+      };
+
+      ws.onclose = () => {
+        setStatus('#444', 'Disconnected');
+        document.getElementById('btn-connect').disabled = false;
+        document.getElementById('btn-disconnect').disabled = true;
+        term.writeln('\r\n\x1b[90mConnection closed.\x1b[0m');
+      };
+
+      ws.onerror = () => {
+        setStatus('#dc2626', 'WebSocket Error');
+      };
+
+      if (!term._initializedDataListener) {
+        term._initializedDataListener = true;
+        term.onData(data => {
+          if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'data', data }));
+        });
+      }
+    });
+
+    document.getElementById('btn-disconnect').addEventListener('click', () => {
+      if (ws) ws.close();
+      setStatus('#444', 'Disconnected');
+      document.getElementById('btn-connect').disabled = false;
+      document.getElementById('btn-disconnect').disabled = true;
+    });
+  </script>
+</body>
+</html>
