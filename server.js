@@ -90,6 +90,13 @@ app.get('/has-key', requireAuth, (req, res) => {
   res.json({ hasKey: !!SSH_PRIVATE_KEY });
 });
 
+app.get('/ts-status', requireAuth, (req, res) => {
+  const { exec } = require('child_process');
+  exec('tailscale --socket=./tailscaled.sock status', (err, stdout, stderr) => {
+    res.json({ status: stdout || stderr || err?.message || 'Unknown error' });
+  });
+});
+
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 

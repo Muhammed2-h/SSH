@@ -72,11 +72,8 @@
     #btn-disconnect:hover {
       background: #991b1b;
     }
-    #btn-disconnect:disabled {
-      background: #1e1e1e;
-      border-color: #333;
-      color: #666;
-      cursor: not-allowed;
+    #btn-ts-status:hover {
+      background: #333;
     }
     #status-dot {
       width: 8px;
@@ -109,6 +106,7 @@
     </div>
     <button id="btn-connect">Connect</button>
     <button id="btn-disconnect" disabled>Disconnect</button>
+    <button id="btn-ts-status" title="Check Tailscale Connection">TS Status</button>
     <span id="status-dot"></span>
     <span id="status-text" style="font-size:12px;color:#666">Idle</span>
     <a href="/logout" style="margin-left:auto;font-size:12px;color:#666;text-decoration:none">Logout</a>
@@ -265,6 +263,19 @@
       document.getElementById('btn-connect').disabled = false;
       document.getElementById('btn-disconnect').disabled = true;
     });
+
+    document.getElementById('btn-ts-status').addEventListener('click', async () => {
+      term.writeln('\r\n\x1b[36mQuerying tailscale node status on Railway...\x1b[0m');
+      try {
+        const res = await fetch('/ts-status');
+        const data = await res.json();
+        const formatted = data.status.split('\n').map(line => `\x1b[90m${line}\x1b[0m`).join('\r\n');
+        term.writeln(formatted);
+      } catch (e) {
+        term.writeln('\x1b[31mFailed to fetch Tailscale status.\x1b[0m');
+      }
+    });
+
   </script>
 </body>
 </html>
