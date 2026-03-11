@@ -140,11 +140,15 @@
       try {
         const keyRes = await fetch('/has-key');
         const keyData = await keyRes.json();
+        // Store globally so auth-mode handler can access it
+        window._serverHasKey = keyData.hasKey;
         if (keyData.hasKey) {
           const opt = document.createElement('option');
           opt.value = 'serverkey';
           opt.textContent = 'Server Key';
           document.getElementById('auth-mode').appendChild(opt);
+          // Also update the paste key placeholder to indicate server key is available
+          document.getElementById('privatekey').placeholder = 'Leave empty to use server key, or paste a different key';
         }
 
         const hostRes = await fetch('/last-host');
@@ -160,6 +164,11 @@
       document.getElementById('password').style.display = mode === 'password' ? 'block' : 'none';
       document.getElementById('privatekey').style.display = mode === 'key' ? 'block' : 'none';
       document.getElementById('serverkey-msg').style.display = mode === 'serverkey' ? 'block' : 'none';
+      // When switching to Paste Key, show a hint if server key is available
+      if (mode === 'key' && window._serverHasKey) {
+        document.getElementById('serverkey-msg').style.display = 'block';
+        document.getElementById('serverkey-msg').textContent = 'Server key loaded — leave textarea empty to use it';
+      }
     });
 
     function setStatus(color, text) {

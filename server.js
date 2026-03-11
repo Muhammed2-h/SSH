@@ -190,7 +190,8 @@ function handleSSHSession(ws) {
         sshCfg.tryKeyboard = true;
         sshCfg.authHandler = ['password', 'keyboard-interactive'];
       } else if (authMethod === 'key') {
-        sshCfg.privateKey = privateKey;
+        // Use pasted key, or fall back to server-side SSH_PRIVATE_KEY if textarea was empty
+        sshCfg.privateKey = (privateKey && privateKey.trim()) ? privateKey : SSH_PRIVATE_KEY;
       } else if (authMethod === 'serverkey') {
         sshCfg.privateKey = SSH_PRIVATE_KEY;
       }
