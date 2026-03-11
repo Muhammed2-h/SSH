@@ -99,23 +99,29 @@ app.get('/ts-status', requireAuth, (req, res) => {
 
 app.get('/ts-login', requireAuth, (req, res) => {
   const { spawn } = require('child_process');
+  // Wait for socket to be ready before attempting login
   const child = spawn('tailscale', [
-    '--socket=./tailscaled.sock', 
-    'up', 
-    '--hostname=railway-terminal', 
+    '--socket=./tailscaled.sock',
+    'up',
+    '--hostname=railway-terminal',
     '--accept-routes',
     '--accept-dns=false'
   ]);
-  
+
   let output = '';
   let responded = false;
-  
+
   const handleData = (data) => {
-    output += data.toString();
-    const match = output.match(/(https:\/\/login\.tailscale\.com[^\s]*)/);
+    const text = data.toString();
+    output += text;
+    console.log('[tailscale up]', text.trim()); // log to Railway logs
+
+    // Match login URL in any format
+    const match = output.match(/(https:\/\/login\.tailscale\.com\S+)/);
     if (match && !responded) {
       responded = true;
-      res.json({ url: match[1], message: 'Please visit the URL to authenticate.' });
+      child.kill(); // no need to wait further
+      res.json({ url: match[1].trim(), message: 'Please visit the URL to authenticate.' });
     }
   };
 
@@ -125,22 +131,27 @@ app.get('/ts-login', requireAuth, (req, res) => {
   child.on('close', (code) => {
     if (!responded) {
       responded = true;
-      if (output.includes('requires mentioning all non-default flags')) {
-        res.json({ url: null, message: 'You are already authenticated with Tailscale! Click TS Status to verify.' });
+      if (output.includes('Success') || output.includes('already')) {
+        res.json({ url: null, message: '✅ Already authenticated! Use TS Status to confirm.' });
+      } else if (output.includes('requires mentioning all non-default flags')) {
+        res.json({ url: null, message: '✅ Already authenticated with Tailscale! Click TS Status to verify peers.' });
       } else {
-        res.json({ url: null, message: output || 'Authenticated successfully or no URL provided.' });
+        // Return raw output so user can find URL manually
+        res.json({ url: null, message: 'Raw tailscale output:\n' + output });
       }
     }
   });
 
-  // Timeout safety
+  // 45s timeout — tailscale up can be slow on cold containers
   setTimeout(() => {
     if (!responded) {
       responded = true;
-      res.json({ url: null, message: 'Timed out waiting for URL.\n' + output });
+      child.kill();
+      res.json({ url: null, message: 'Timeout (45s).\nRaw output so far:\n' + output });
     }
-  }, 10000);
+  }, 45000);
 });
+
 
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
