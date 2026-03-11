@@ -7,6 +7,7 @@ const cookie = require('cookie');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { SocksClient } = require('socks');
 
 // Load .env manually if not on Railway
 try {
@@ -177,7 +178,23 @@ function handleSSHSession(ws, req) {
             }
           });
 
-          conn.connect(sshConfig);
+          if (data.host.startsWith('100.') || data.host.endsWith('.ts.net')) {
+            SocksClient.createConnection({
+              proxy: { ipaddress: '127.0.0.1', port: 1055, type: 5 },
+              command: 'connect',
+              destination: { host: sshConfig.host, port: sshConfig.port }
+            }).then(info => {
+              sshConfig.sock = info.socket;
+              conn.connect(sshConfig);
+            }).catch(err => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Tailscale Proxy Error: ' + err.message }));
+                ws.close();
+              }
+            });
+          } else {
+            conn.connect(sshConfig);
+          }
         }
       } catch (err) {
         if (ws.readyState === WebSocket.OPEN) {
